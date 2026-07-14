@@ -126,6 +126,35 @@ def fetch_clip(clip_id: int):
     return None
 
 
+def delete_clips(clip_ids):
+    """clip_id 목록에 해당하는 행을 Sheets에서 삭제하고, 함께 지워야 할
+    Drive 파일 ID 목록(오디오+시각화 4종)을 clip_id별로 반환한다.
+    실제 Drive 파일 삭제는 호출부(페이지)에서 storage.delete_file로 수행한다.
+    """
+    target_ids = {str(c) for c in clip_ids}
+    ws = _get_or_create_worksheet(CLIPS_SHEET, CLIPS_COLUMNS)
+    records = ws.get_all_records()
+
+    rows_to_delete = []  # 시트상 실제 행 번호(1-indexed, 헤더=1행)
+    file_ids_by_clip = {}
+    for idx, r in enumerate(records):
+        if str(r.get("clip_id")) in target_ids:
+            rows_to_delete.append(idx + 2)
+            file_ids_by_clip[r.get("clip_id")] = [
+                r.get("drive_audio_file_id"),
+                r.get("viz_waveform_file_id"),
+                r.get("viz_melspec_file_id"),
+                r.get("viz_f0_file_id"),
+                r.get("viz_rms_file_id"),
+            ]
+
+    for row in sorted(rows_to_delete, reverse=True):
+        ws.delete_rows(row)
+
+    fetch_all_clips.clear()
+    return file_ids_by_clip
+
+
 def count_by_condition_combo():
     """조건 조합별 수집 개수를 dict[tuple(values)] -> count 형태로 반환."""
     result = {}

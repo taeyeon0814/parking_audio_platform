@@ -9,6 +9,7 @@ import streamlit as st
 from core.config import CONDITIONS, EXTRA_LABELS
 from core.db import fetch_all_clips
 from core.storage import download_bytes
+from core.clip_actions import delete_clips
 from core.ui_common import require_auth_and_setup
 
 st.set_page_config(page_title="클립 탐색", page_icon="🔊", layout="wide")
@@ -74,3 +75,28 @@ for field, title in viz_specs:
             st.warning(f"이미지를 불러오지 못했습니다: {e}")
     else:
         st.warning("시각화 이미지가 없습니다. (업로드 시 생성 실패했을 수 있습니다)")
+
+st.divider()
+st.markdown("### 클립 삭제")
+
+confirm_key = f"confirm_delete_{clip['clip_id']}"
+
+if not st.session_state.get(confirm_key):
+    if st.button("🗑️ 이 클립 삭제", key=f"delete_btn_{clip['clip_id']}"):
+        st.session_state[confirm_key] = True
+        st.rerun()
+else:
+    st.warning(f"'{clip['stored_filename']}'을(를) 삭제하면 되돌릴 수 없습니다. Drive의 오디오/시각화 파일과 Sheets의 기록이 모두 삭제됩니다.")
+    c1, c2 = st.columns(2)
+    if c1.button("네, 삭제합니다", type="primary", key=f"confirm_yes_{clip['clip_id']}"):
+        with st.spinner("삭제 중..."):
+            deleted_count, errors = delete_clips([clip["clip_id"]])
+        st.session_state.pop(confirm_key, None)
+        if deleted_count:
+            st.success("삭제 완료.")
+        if errors:
+            st.warning("일부 Drive 파일 삭제에 실패했습니다: " + "; ".join(errors))
+        st.rerun()
+    if c2.button("취소", key=f"confirm_no_{clip['clip_id']}"):
+        st.session_state.pop(confirm_key, None)
+        st.rerun()
